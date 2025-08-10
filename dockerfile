@@ -1,35 +1,23 @@
-# Базовый образ для сборки
-FROM node:20-alpine AS builder
+# Используем официальный образ Node.js
+FROM node:18-alpine
 
+# Создаем рабочую директорию
 WORKDIR /app
 
-# Копируем файлы зависимостей
+# Копируем package.json и package-lock.json
 COPY package*.json ./
-COPY tsconfig.json ./
 
 # Устанавливаем зависимости
 RUN npm install
 
-# Копируем исходный код
-COPY src ./src
+# Копируем остальные файлы проекта
+COPY . .
 
-# Собираем проект
-RUN npm run build
+# Порт, который будет использовать приложение
+EXPOSE 8080
 
-# Финальный образ
-FROM node:20-alpine
+# Устанавливаем зависимости + ts-node
+RUN npm install && npm install -g ts-node
 
-WORKDIR /app
-
-# Копируем только необходимые файлы из builder
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/dist ./dist
-
-# Устанавливаем только production зависимости
-RUN npm install --production
-
-# Открываем порт
-EXPOSE 3000
-
-# Команда для запуска
-CMD ["node", "dist/index.js"]
+# Запускаем в dev-режиме
+CMD ["npm", "run", "dev"]
