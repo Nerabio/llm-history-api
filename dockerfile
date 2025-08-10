@@ -20,4 +20,4 @@ EXPOSE 3000
 RUN npm install && npm install -g ts-node
 
 # Запускаем в dev-режиме
-CMD ["npm", "run", "dev"]
+CMD ["npm", "run", "start"]
