@@ -6,13 +6,19 @@ import { Message, Session } from "./types/message";
 
 const app = fastify();
 
-async function main() {
-  await app.register(cors, {
-    origin: true,
-    methods: ["GET", "POST", "PUT", "DELETE"],
-  });
-  await app.listen({ port: 3000 });
-}
+const start = async () => {
+  try {
+    await app.register(cors, {
+      origin: true,
+      methods: ["GET", "POST", "PUT", "DELETE"],
+    });
+    await app.listen({ port: 3000, host: "0.0.0.0" });
+    console.log(`Server listening on 3000`);
+  } catch (err) {
+    app.log.error(err);
+    process.exit(1);
+  }
+};
 
 // Схемы валидации
 const MessageSchema = Type.Object({
@@ -150,4 +156,4 @@ app.delete(
   }
 );
 
-main().catch(console.error);
+start().catch(console.error);

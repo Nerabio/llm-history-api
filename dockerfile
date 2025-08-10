@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Устанавливаем зависимости
-RUN npm install
+RUN npm install --include=dev --force
 
 # Копируем остальные файлы
 COPY . .
@@ -20,4 +20,4 @@ RUN npm run build
 EXPOSE 3000
 
 # Запускаем сервер
-CMD ["npm", "start"]
+CMD ["npm", "run", "dev"]
