@@ -14,7 +14,7 @@ RUN npm install
 COPY . .
 
 # Порт, который будет использовать приложение
-EXPOSE 8080
+EXPOSE 3000
 
 # Устанавливаем зависимости + ts-node
 RUN npm install && npm install -g ts-node
