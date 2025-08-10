@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "outDir": "./dist",
+    "esModuleInterop": true,
+    "strict": true,
+    "moduleDetection": "force", // Для явного определения модулей
+    "rootDir": "./src", // Указываем корневую директорию
+    "types": ["node"] // Для Node.js типов
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules"]
+}
