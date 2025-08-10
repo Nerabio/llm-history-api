@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 
-const db = new Database("storage.db");
+const db = new Database("./data/storage.db");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS sessions (
