@@ -17,7 +17,7 @@ COPY . .
 EXPOSE 3000
 
 # Устанавливаем зависимости + ts-node
-RUN npm install && npm install -g ts-node
+RUN npm install && npm install -g ts-node && npm install -g tsc
 
 # Запускаем в dev-режиме
 CMD ["npm", "run", "start"]
