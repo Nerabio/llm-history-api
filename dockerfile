@@ -1,23 +1,35 @@
-# Используем официальный образ Node.js
-FROM node:20-alpine
+# Базовый образ для сборки
+FROM node:18-alpine AS builder
 
-# Создаем рабочую директорию
 WORKDIR /app
 
-# Копируем package.json и package-lock.json
+# Копируем файлы зависимостей
 COPY package*.json ./
+COPY tsconfig.json ./
 
 # Устанавливаем зависимости
-RUN npm install --include=dev --force
+RUN npm install
 
-# Копируем остальные файлы
-COPY . .
+# Копируем исходный код
+COPY src ./src
 
-# Собираем TypeScript (если нужно)
+# Собираем проект
 RUN npm run build
 
-# Открываем порт, на котором работает Fastify
+# Финальный образ
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Копируем только необходимые файлы из builder
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/dist ./dist
+
+# Устанавливаем только production зависимости
+RUN npm install --production
+
+# Открываем порт
 EXPOSE 3000
 
-# Запускаем сервер
-CMD ["npm", "run", "dev"]
+# Команда для запуска
+CMD ["node", "dist/index.js"]
