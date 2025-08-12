@@ -150,7 +150,7 @@ app.delete(
   },
   async (req: FastifyRequest<{ Params: ParamsType }>, reply) => {
     const { id } = req.params;
-    const stmt = db.prepare("DELETE FROM sessions WHERE id = ?");
+    const stmt = db.prepare("DELETE FROM sessions WHERE chat_id = ?");
     const changes = stmt.run(id).changes;
     return { success: changes > 0 };
   }

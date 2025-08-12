@@ -1,6 +1,10 @@
 import Database from "better-sqlite3";
 
-const db = new Database("./data/storage.db");
+const db = new Database("./data/storage.db", {
+  verbose: console.log,
+});
+
+db.pragma("foreign_keys = ON");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS sessions (
@@ -17,7 +21,7 @@ db.exec(`
     role TEXT CHECK(role IN ('user', 'assistant', 'system', 'tool')) NOT NULL,
     content TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (session_id) REFERENCES sessions(id)
+    FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
   );
 `);
 
