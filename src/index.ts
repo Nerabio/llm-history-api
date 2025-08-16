@@ -34,13 +34,87 @@ const MessageSchema = Type.Object({
 
 type MessageRequest = Static<typeof MessageSchema>;
 
+// SCHEMA FOR PROMPT
+// Define the schema for the prompt
+const PromptSchema = Type.Object({
+  role: Type.Union([
+    Type.Literal("user"),
+    Type.Literal("assistant"),
+    Type.Literal("system"),
+    Type.Literal("tool"),
+  ]),
+  content: Type.String(),
+});
+
+type PromptRequest = Static<typeof PromptSchema>;
+
 // Схема для параметров
 const ParamsSchema = Type.Object({
   id: Type.Union([Type.String(), Type.Number()]),
 });
 
-// Тип из схемы
 type ParamsType = Static<typeof ParamsSchema>;
+
+// Схема для связывания промта и сессии
+const SessionPromptSchema = Type.Object({
+  chatId: Type.Union([Type.String(), Type.Number()]),
+  promptId: Type.Union([Type.String(), Type.Number()]),
+});
+
+type SessionPrompt = Static<typeof SessionPromptSchema>;
+
+app.post(
+  "/prompt",
+  {
+    schema: {
+      body: PromptSchema,
+      response: {
+        200: Type.Object({
+          prompt_id: Type.Number(),
+        }),
+      },
+    },
+  },
+  async (req: FastifyRequest<{ Body: PromptRequest }>, reply) => {
+    const { role, content } = req.body;
+
+    const stmt = db.prepare(
+      "INSERT INTO prompts (role, content) VALUES ( ?, ?)"
+    );
+    const info = stmt.run(role, content);
+
+    return {
+      prompt_id: Number(info.lastInsertRowid),
+    };
+  }
+);
+
+app.post(
+  "/add-prompt-to-session",
+  {
+    schema: {
+      body: SessionPromptSchema,
+      response: { 200: Type.Object({ success: Type.Boolean() }) },
+    },
+  },
+  async (req: FastifyRequest<{ Body: SessionPrompt }>, reply) => {
+    const { chatId, promptId } = req.body;
+    let session = db
+      .prepare("SELECT id FROM sessions WHERE chat_id = ?")
+      .get(chatId) as Session | undefined;
+
+    if (!session) {
+      return reply.status(404).send({ error: "Session not found" });
+    }
+
+    const stmt = db.prepare(
+      "INSERT INTO session_prompts (session_id, prompt_id) VALUES (?, ?);"
+    );
+    const changes = stmt.run(session.id, promptId).changes;
+
+    return { success: changes > 0 };
+  }
+);
 
 // Унифицированный POST /messages (создаёт сессию при необходимости)
 app.post(
@@ -83,27 +157,88 @@ app.post(
   }
 );
 
-// // Создание сессии (POST /sessions/:id)
-// app.post(
-//   "/sessions/:id",
-//   {
-//     schema: {
-//       params: ParamsSchema,
-//       response: {
-//         200: Type.Object({
-//           id: Type.Number(),
-//         }),
-//       },
-//     },
-//   },
-//   async (req: FastifyRequest<{ Params: ParamsType }>, reply) => {
-//     const { id } = req.params;
-//     const newSession = db.prepare("INSERT INTO sessions DEFAULT VALUES").run();
-//     return {
-//       session_id: Number(newSession.lastInsertRowid),
-//     };
-//   }
-// );
+// Получение сообщения по ID (GET /messages/:id)
+app.get(
+  "/messages/:id",
+  {
+    schema: {
+      params: ParamsSchema,
+      response: {
+        200: Type.Object({
+          id: Type.Number(),
+          role: Type.String(),
+          content: Type.String(),
+          created_at: Type.String(),
+        }),
+      },
+    },
+  },
+  async (req: FastifyRequest<{ Params: ParamsType }>, reply) => {
+    const { id } = req.params;
+    const message = db.prepare("SELECT * FROM messages WHERE id = ?").get(id);
+    if (!message) {
+      return reply.status(404).send({ error: "Message not found" });
+    }
+    return message;
+  }
+);
+
+// Редактирование сообщения по ID (PUT /messages/:id)
+app.put(
+  "/messages/:id",
+  {
+    schema: {
+      params: ParamsSchema,
+      body: Type.Object({
+        role: Type.String(),
+        content: Type.String(),
+      }),
+      response: {
+        200: Type.Object({
+          id: Type.Number(),
+          role: Type.String(),
+          content: Type.String(),
+          created_at: Type.String(),
+        }),
+      },
+    },
+  },
+  async (
+    req: FastifyRequest<{ Params: ParamsType; Body: MessageRequest }>,
+    reply
+  ) => {
+    const { id } = req.params;
+    const { role, content } = req.body;
+    const stmt = db.prepare(
+      "UPDATE messages SET role = ?, content = ? WHERE id = ?"
+    );
+    const changes = stmt.run(role, content, id).changes;
+    if (changes === 0) {
+      return reply.status(404).send({ error: "Message not found" });
+    }
+    const updatedMessage = db
+      .prepare("SELECT * FROM messages WHERE id = ?")
+      .get(id);
+    return updatedMessage;
+  }
+);
+
+// Удаление сообщения по ID (DELETE /messages/:id)
+app.delete(
+  "/messages/:id",
+  {
+    schema: {
+      params: ParamsSchema,
+      response: { 200: Type.Object({ success: Type.Boolean() }) },
+    },
+  },
+  async (req: FastifyRequest<{ Params: ParamsType }>, reply) => {
+    const { id } = req.params;
+    const stmt = db.prepare("DELETE FROM messages WHERE id = ?");
+    const changes = stmt.run(id).changes;
+    return { success: changes > 0 };
+  }
+);
 
 // Получение всех сообщений сессии (GET /sessions/:id)
 app.get(
@@ -112,20 +247,22 @@ app.get(
     schema: {
       params: ParamsSchema,
       response: {
-        200: Type.Array(
-          Type.Object({
-            id: Type.Number(),
-            role: Type.String(),
-            content: Type.String(),
-            created_at: Type.String(),
-          })
-        ),
+        200: Type.Object({ prompts: Type.Any(), messages: Type.Any() }),
       },
     },
   },
   async (req: FastifyRequest<{ Params: ParamsType }>, reply) => {
     const { id } = req.params;
-    return db
+    const sessionPrompt = db
+      .prepare(
+        `SELECT p.*
+        FROM sessions s
+        LEFT JOIN session_prompts sp ON s.id = sp.session_id
+        JOIN prompts p ON sp.prompt_id = p.id WHERE s.chat_id = ?`
+      )
+      .all(id) as Message[];
+
+    const messages = db
       .prepare(
         `
         SELECT m.id, m.role, m.content, m.created_at 
@@ -136,6 +273,11 @@ app.get(
       `
       )
       .all(id) as Message[];
+
+    return {
+      prompts: sessionPrompt,
+      messages: messages,
+    };
   }
 );
 
